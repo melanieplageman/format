@@ -46,9 +46,6 @@ Datum replace(PG_FUNCTION_ARGS) {
   // result is used to store the returned result which is formatoutput converted to text
   text *result;
 
-  // dresult is the datum version of result
-  Datum dresult;
-
   start_ptr = VARDATA_ANY(format_string_text);
   end_ptr = start_ptr + VARSIZE_ANY_EXHDR(format_string_text);
   initStringInfo(&output);
@@ -85,21 +82,24 @@ Datum replace(PG_FUNCTION_ARGS) {
 
   initStringInfo(&formatoutput);
 
-  enlargeStringInfo(&formatoutput, lenval + length);
+  enlargeStringInfo(&formatoutput, lenval + output.len);
 
   memcpy(formatoutput.data, output.data, length);
   formatoutput.len += length;
   formatoutput.data[formatoutput.len] = '\0';
-  memcpy(formatoutput.data + formatoutput.len, strval, lenval);
+
+  memcpy(formatoutput.data + formatoutput.len, &strval, lenval);
+  formatoutput.len += lenval;
   formatoutput.data[formatoutput.len] = '\0';
+
   memcpy(formatoutput.data + formatoutput.len, output.data + length, output.len - length);
+  formatoutput.len += output.len - length;
   formatoutput.data[formatoutput.len] = '\0';
 
   result = cstring_to_text_with_len(formatoutput.data, formatoutput.len);
-  dresult = (Datum) result;
 
   pfree(output.data);
   pfree(formatoutput.data);
 
-  PG_RETURN_TEXT_P(dresult);
+  PG_RETURN_TEXT_P(result);
 }
