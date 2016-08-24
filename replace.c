@@ -67,18 +67,51 @@ Datum replace(PG_FUNCTION_ARGS) {
     }
     else if (state == 1 && *cp == '}') {
       state = 0;
+      // TODO: make it take multiple keys
+      /* keycounter++; */
     }
   }
 
+  /* // TestStart: Check if key is correct value */
+  /* text *keytest; */
+  /* if (strcmp(key.data, "food") != 0) { */
+  /*   char *keytestreject = "Key is not correct value"; */
+  /*   keytest = cstring_to_text(keytestreject); */
+  /*   PG_RETURN_TEXT_P(keytest); */
+  /* } */
+  /* else { */
+  /*   keytest = cstring_to_text_with_len(key.data, key.len); */
+  /*   PG_RETURN_TEXT_P(keytest); */
+  /* } */
+  /* // TestEnd */
+
   tkey = cstring_to_text_with_len(key.data, key.len);
+  
   value = DirectFunctionCall2(
     hstore_fetchval, hstore, (Datum) tkey);
-  if (value == (Datum) 0)
+  if (value == (Datum) 0) {
     PG_RETURN_NULL();
-  pfree(key.data);
-  
-  strval = DatumGetCString(value);
+  }
+
+  /* // TestStart: Return value returned */
+  /* PG_RETURN_TEXT_P(value); */
+  /* // TestEnd */
+
+  strval = text_to_cstring((text*) value);
   int lenval = strlen(strval);
+
+  /* // TestStart: Check if the value retrieved and converted  matches that in the hstore */
+  /* text *valtest; */
+  /* if (strcmp(strval, "pork") != 0) { */
+  /*   char *valtestreject = "Value is not correct"; */
+  /*   valtest = cstring_to_text(valtestreject); */
+  /*   PG_RETURN_TEXT_P(valtest); */
+  /* } */
+  /* else { */
+  /*   valtest = cstring_to_text_with_len(strval, lenval); */
+  /*   PG_RETURN_TEXT_P(valtest); */
+  /* } */
+  /* // TestEnd */
 
   initStringInfo(&formatoutput);
 
@@ -88,9 +121,19 @@ Datum replace(PG_FUNCTION_ARGS) {
   formatoutput.len += length;
   formatoutput.data[formatoutput.len] = '\0';
 
-  memcpy(formatoutput.data + formatoutput.len, &strval, lenval);
+  /* // TestStart: Check current value of formatoutput */
+  /* text* check = cstring_to_text_with_len(formatoutput.data, formatoutput.len); */
+  /* PG_RETURN_TEXT_P(check); */
+  /* // TestEnd */
+
+  memcpy(formatoutput.data + formatoutput.len, strval, lenval);
   formatoutput.len += lenval;
   formatoutput.data[formatoutput.len] = '\0';
+
+  /* // TestStart: Check current value of formatoutput */
+  /* text* check = cstring_to_text_with_len(formatoutput.data, formatoutput.len); */
+  /* PG_RETURN_TEXT_P(check); */
+  /* // TestEnd */
 
   memcpy(formatoutput.data + formatoutput.len, output.data + length, output.len - length);
   formatoutput.len += output.len - length;
@@ -98,6 +141,7 @@ Datum replace(PG_FUNCTION_ARGS) {
 
   result = cstring_to_text_with_len(formatoutput.data, formatoutput.len);
 
+  pfree(key.data);
   pfree(output.data);
   pfree(formatoutput.data);
 
