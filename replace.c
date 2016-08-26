@@ -38,11 +38,7 @@ Datum replace(PG_FUNCTION_ARGS) {
   // strval will store the converted cstring version of the value
   char *strval;
 
-  // formatoutput is the StringInfoData which is used to copy in the text and the value retrieved
-  StringInfoData formatoutput;
-  initStringInfo(&formatoutput);
-
-  // result is used to store the returned result which is formatoutput converted to text
+  // result is used to store the returned result which is output converted to text
   text *result;
 
   start_ptr = VARDATA_ANY(format_string_text);
@@ -50,9 +46,7 @@ Datum replace(PG_FUNCTION_ARGS) {
   initStringInfo(&output);
   initStringInfo(&key);
 
-  // need to leave inner loop each time an entire key is discovered and look it up
   cp = start_ptr;
-
   for (; cp < end_ptr; cp++) {
 
     if (state == 0 && *cp != '{') {
@@ -60,14 +54,10 @@ Datum replace(PG_FUNCTION_ARGS) {
       state = 0;
     }
     else if (state == 0 && *cp == '{') {
-      // copy input string to formatoutput
-      appendBinaryStringInfo(&formatoutput, output.data, output.len);
-      resetStringInfo(&output);
       state = 1;
     }
     else if (state == 1 && *cp != '}') {
       appendStringInfoCharMacro(&key, *cp);
-
       state = 1;
     }
     else if (state == 1 && *cp == '}') {
@@ -83,8 +73,8 @@ Datum replace(PG_FUNCTION_ARGS) {
       strval = text_to_cstring((text*) value);
       int lenval = strlen(strval);
 
-      // copy value retrieved to formatoutput
-      appendBinaryStringInfo(&formatoutput, strval, lenval);
+      // copy value retrieved to output
+      appendBinaryStringInfo(&output, strval, lenval);
       resetStringInfo(&key);
 
       state = 0;
@@ -93,14 +83,10 @@ Datum replace(PG_FUNCTION_ARGS) {
     if (cp == end_ptr) break;
   }
 
-  // copy the remainder of the input string to formatoutput
-  appendBinaryStringInfo(&formatoutput, output.data, output.len);
-
-  result = cstring_to_text_with_len(formatoutput.data, formatoutput.len);
+  result = cstring_to_text_with_len(output.data, output.len);
 
   pfree(key.data);
   pfree(output.data);
-  pfree(formatoutput.data);
 
   PG_RETURN_TEXT_P(result);
 }
