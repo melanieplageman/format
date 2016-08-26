@@ -16,15 +16,12 @@ Datum replace(PG_FUNCTION_ARGS) {
   const char *start_ptr;
   const char *end_ptr;
   const char *cp;
-  const char *tracker;
 
   // upon scan, key stores the text within the format specifier
   // must be a StringInfoData so appendStringInfoCharMacro can be used
   StringInfoData key;
   // upon scan, output stores the text before and after the format specifier
   StringInfoData output;
-  // length will be the length of the output string before the initial {
-  int length = 0;
   int state = 0;
 
   // tkey will store the text version of the StringInfoData key parsed from the format_string_text
@@ -54,60 +51,50 @@ Datum replace(PG_FUNCTION_ARGS) {
   initStringInfo(&key);
 
   // need to leave inner loop each time an entire key is discovered and look it up
-  tracker = start_ptr;
-  cp = tracker;
-  while (cp < end_ptr) {
+  cp = start_ptr;
 
-    for (cp = tracker; cp < end_ptr; cp++) {
+  for (; cp < end_ptr; cp++) {
 
-      if (state == 0 && *cp != '{') {
-        appendStringInfoCharMacro(&output, *cp);
-        state = 0;
-      }
-      else if (state == 0 && *cp == '{') {
-        length = output.len;
-        // copy input string to formatoutput
-        appendBinaryStringInfo(&formatoutput, output.data, length);
-        state = 1;
-      }
-      else if (state == 1 && *cp != '}') {
-        appendStringInfoCharMacro(&key, *cp);
-
-        state = 1;
-      }
-      else if (state == 1 && *cp == '}') {
-        tkey = cstring_to_text_with_len(key.data, key.len);
-        // look up key in hstore and retrieve value
-        value = DirectFunctionCall2(
-          hstore_fetchval, hstore, (Datum) tkey);
-
-        /* if (value == (Datum) 0) { */
-        /*   PG_RETURN_NULL(); */
-        /* } */
-
-        strval = text_to_cstring((text*) value);
-        int lenval = strlen(strval);
-
-        // copy value retrieved to formatoutput
-        appendBinaryStringInfo(&formatoutput, strval, lenval);
-
-        state = 0;
-        cp++;
-        break;
-      }
+    if (state == 0 && *cp != '{') {
+      appendStringInfoCharMacro(&output, *cp);
+      state = 0;
     }
+    else if (state == 0 && *cp == '{') {
+      // copy input string to formatoutput
+      appendBinaryStringInfo(&formatoutput, output.data, output.len);
+      resetStringInfo(&output);
+      state = 1;
+    }
+    else if (state == 1 && *cp != '}') {
+      appendStringInfoCharMacro(&key, *cp);
 
+      state = 1;
+    }
+    else if (state == 1 && *cp == '}') {
+      tkey = cstring_to_text_with_len(key.data, key.len);
+      // look up key in hstore and retrieve value
+      value = DirectFunctionCall2(
+        hstore_fetchval, hstore, (Datum) tkey);
+
+      /* if (value == (Datum) 0) { */
+      /*   PG_RETURN_NULL(); */
+      /* } */
+
+      strval = text_to_cstring((text*) value);
+      int lenval = strlen(strval);
+
+      // copy value retrieved to formatoutput
+      appendBinaryStringInfo(&formatoutput, strval, lenval);
+      resetStringInfo(&key);
+
+      state = 0;
+      continue;
+    }
     if (cp == end_ptr) break;
-
-    length = 0;
-    resetStringInfo(&key);
-    resetStringInfo(&output);
-    tracker = cp;
   }
-  length = output.len;
 
   // copy the remainder of the input string to formatoutput
-  appendBinaryStringInfo(&formatoutput, output.data, length);
+  appendBinaryStringInfo(&formatoutput, output.data, output.len);
 
   result = cstring_to_text_with_len(formatoutput.data, formatoutput.len);
 
