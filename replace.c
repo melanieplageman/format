@@ -52,7 +52,7 @@ Datum replace(PG_FUNCTION_ARGS) {
   end_ptr = start_ptr + VARSIZE_ANY_EXHDR(format_string_text);
   initStringInfo(&output);
   initStringInfo(&key);
-  
+
   // need to leave inner loop each time an entire key is discovered and look it up
   tracker = start_ptr;
   cp = tracker;
@@ -81,18 +81,7 @@ Datum replace(PG_FUNCTION_ARGS) {
 
     if (cp == end_ptr) break;
 
-    /* // TestStart: Check if key is correct value */
-    /* text *keytest; */
-    /* if (strcmp(key.data, "food") != 0) { */
-    /*   char *keytestreject = "Key is not correct value"; */
-    /*   keytest = cstring_to_text(keytestreject); */
-    /*   PG_RETURN_TEXT_P(keytest); */
-    /* } */
-    /* else { */
-    /*   keytest = cstring_to_text_with_len(key.data, key.len); */
-    /*   PG_RETURN_TEXT_P(keytest); */
-    /* } */
-    /* // TestEnd */
+    elog(WARNING, "%s\n", key.data);
 
     tkey = cstring_to_text_with_len(key.data, key.len);
     
@@ -103,75 +92,32 @@ Datum replace(PG_FUNCTION_ARGS) {
     /*   PG_RETURN_NULL(); */
     /* } */
 
-    /* // TestStart: Return value returned */
-    /* PG_RETURN_TEXT_P(value); */
-    /* // TestEnd */
-
     strval = text_to_cstring((text*) value);
     int lenval = strlen(strval);
 
-    /* // TestStart: Check if the value retrieved and converted  matches that in the hstore */
-    /* text *valtest; */
-    /* if (strcmp(strval, "pork") != 0) { */
-    /*   char *valtestreject = "Value is not correct"; */
-    /*   valtest = cstring_to_text(valtestreject); */
-    /*   PG_RETURN_TEXT_P(valtest); */
-    /* } */
-    /* else { */
-    /*   valtest = cstring_to_text_with_len(strval, lenval); */
-    /*   PG_RETURN_TEXT_P(valtest); */
-    /* } */
-    /* // TestEnd */
+    elog(WARNING, "%s\n", strval);
 
-    // enlarge formatoutput to fit the length of the output until the value and the value
-    enlargeStringInfo(&formatoutput, lenval + length);
+    // copy input string to formatoutput
+    appendBinaryStringInfo(&formatoutput, output.data, length);
 
-    // copy the first part of the input string to the format string
-    memcpy((&formatoutput)->data + (&formatoutput)->len, (&output)->data, length);
+    elog(WARNING, "%s\n", formatoutput.data);
 
-    // increment formatoutput length by the amount of the first part of the input string
-    (&formatoutput)->len += length;
+    // copy value retrieved to formatoutput
+    appendBinaryStringInfo(&formatoutput, strval, lenval);
 
-    (&formatoutput)->data[(&formatoutput)->len] = '\0';
-
-    /* // TestStart: Check current value of formatoutput */
-    /* text* check = cstring_to_text_with_len(formatoutput.data, formatoutput.len); */
-    /* PG_RETURN_TEXT_P(check); */
-    /* // TestEnd */
-
-    // copy the value retrieved to the end of the formatoutput string
-    memcpy((&formatoutput)->data + (&formatoutput)->len, strval, lenval);
-    (&formatoutput)->len += lenval;
-    (&formatoutput)->data[(&formatoutput)->len] = '\0';
-
-    /* // TestStart: Check current value of formatoutput */
-    /* text* check = cstring_to_text_with_len((&formatoutput)->data, (&formatoutput)->len); */
-    /* PG_RETURN_TEXT_P(check); */
-    /* // TestEnd */
+    elog(WARNING, "%s\n", formatoutput.data);
 
     length = 0;
     resetStringInfo(&key);
     resetStringInfo(&output);
     tracker = cp;
-    /* continue; */
   }
   length = output.len;
 
-  // enlarge formatoutput to fit the length of the output until the value and the value
-  enlargeStringInfo(&formatoutput, length);
+  // copy the remainder of the input string to formatoutput
+  appendBinaryStringInfo(&formatoutput, output.data, length);
 
-  // copy the last part of the input string to the format string
-  memcpy((&formatoutput)->data + (&formatoutput)->len, (&output)->data, length);
-
-  // increment formatoutput length by the amount of the last part of the input string
-  (&formatoutput)->len += length;
-
-  (&formatoutput)->data[(&formatoutput)->len] = '\0';
-
-  /* // TestStart: Check current value of formatoutput */
-  /* text* check = cstring_to_text_with_len((&formatoutput)->data, (&formatoutput)->len); */
-  /* PG_RETURN_TEXT_P(check); */
-  /* // TestEnd */
+  elog(WARNING, "%s\n", formatoutput.data);
 
   result = cstring_to_text_with_len(formatoutput.data, formatoutput.len);
 
