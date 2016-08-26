@@ -66,13 +66,31 @@ Datum replace(PG_FUNCTION_ARGS) {
       }
       else if (state == 0 && *cp == '{') {
         length = output.len;
+        // copy input string to formatoutput
+        appendBinaryStringInfo(&formatoutput, output.data, length);
         state = 1;
       }
       else if (state == 1 && *cp != '}') {
         appendStringInfoCharMacro(&key, *cp);
+
         state = 1;
       }
       else if (state == 1 && *cp == '}') {
+        tkey = cstring_to_text_with_len(key.data, key.len);
+        // look up key in hstore and retrieve value
+        value = DirectFunctionCall2(
+          hstore_fetchval, hstore, (Datum) tkey);
+
+        /* if (value == (Datum) 0) { */
+        /*   PG_RETURN_NULL(); */
+        /* } */
+
+        strval = text_to_cstring((text*) value);
+        int lenval = strlen(strval);
+
+        // copy value retrieved to formatoutput
+        appendBinaryStringInfo(&formatoutput, strval, lenval);
+
         state = 0;
         cp++;
         break;
@@ -80,32 +98,6 @@ Datum replace(PG_FUNCTION_ARGS) {
     }
 
     if (cp == end_ptr) break;
-
-    elog(WARNING, "%s\n", key.data);
-
-    tkey = cstring_to_text_with_len(key.data, key.len);
-    
-    // look up key in hstore and retrieve value
-    value = DirectFunctionCall2(
-      hstore_fetchval, hstore, (Datum) tkey);
-    /* if (value == (Datum) 0) { */
-    /*   PG_RETURN_NULL(); */
-    /* } */
-
-    strval = text_to_cstring((text*) value);
-    int lenval = strlen(strval);
-
-    elog(WARNING, "%s\n", strval);
-
-    // copy input string to formatoutput
-    appendBinaryStringInfo(&formatoutput, output.data, length);
-
-    elog(WARNING, "%s\n", formatoutput.data);
-
-    // copy value retrieved to formatoutput
-    appendBinaryStringInfo(&formatoutput, strval, lenval);
-
-    elog(WARNING, "%s\n", formatoutput.data);
 
     length = 0;
     resetStringInfo(&key);
@@ -116,8 +108,6 @@ Datum replace(PG_FUNCTION_ARGS) {
 
   // copy the remainder of the input string to formatoutput
   appendBinaryStringInfo(&formatoutput, output.data, length);
-
-  elog(WARNING, "%s\n", formatoutput.data);
 
   result = cstring_to_text_with_len(formatoutput.data, formatoutput.len);
 
