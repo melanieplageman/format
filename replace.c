@@ -16,6 +16,7 @@ Datum replace(PG_FUNCTION_ARGS) {
   const char *start_ptr;
   const char *end_ptr;
   const char *cp;
+  const char *tracker;
 
   // upon scan, key stores the text within the format specifier
   // must be a StringInfoData so appendStringInfoCharMacro can be used
@@ -42,6 +43,7 @@ Datum replace(PG_FUNCTION_ARGS) {
 
   // formatoutput is the StringInfoData which is used to copy in the text and the value retrieved
   StringInfoData formatoutput;
+  initStringInfo(&formatoutput);
 
   // result is used to store the returned result which is formatoutput converted to text
   text *result;
@@ -50,94 +52,117 @@ Datum replace(PG_FUNCTION_ARGS) {
   end_ptr = start_ptr + VARSIZE_ANY_EXHDR(format_string_text);
   initStringInfo(&output);
   initStringInfo(&key);
-
-  for (cp = start_ptr; cp < end_ptr; cp++) {
-
-    if (state == 0 && *cp != '{') {
-      appendStringInfoCharMacro(&output, *cp);
-      state = 0;
-    }
-    else if (state == 0 && *cp == '{') {
-      length = output.len;
-      state = 1;
-    }
-    else if (state == 1 && *cp != '}') {
-      appendStringInfoCharMacro(&key, *cp);
-      state = 1;
-    }
-    else if (state == 1 && *cp == '}') {
-      state = 0;
-      // TODO: make it take multiple keys
-      /* keycounter++; */
-    }
-  }
-
-  /* // TestStart: Check if key is correct value */
-  /* text *keytest; */
-  /* if (strcmp(key.data, "food") != 0) { */
-  /*   char *keytestreject = "Key is not correct value"; */
-  /*   keytest = cstring_to_text(keytestreject); */
-  /*   PG_RETURN_TEXT_P(keytest); */
-  /* } */
-  /* else { */
-  /*   keytest = cstring_to_text_with_len(key.data, key.len); */
-  /*   PG_RETURN_TEXT_P(keytest); */
-  /* } */
-  /* // TestEnd */
-
-  tkey = cstring_to_text_with_len(key.data, key.len);
   
-  value = DirectFunctionCall2(
-    hstore_fetchval, hstore, (Datum) tkey);
-  if (value == (Datum) 0) {
-    PG_RETURN_NULL();
+  // need to leave inner loop each time an entire key is discovered and look it up
+  tracker = start_ptr;
+  cp = tracker;
+  while (cp < end_ptr) {
+
+    for (cp = tracker; cp < end_ptr; cp++) {
+
+      if (state == 0 && *cp != '{') {
+        appendStringInfoCharMacro(&output, *cp);
+        state = 0;
+      }
+      else if (state == 0 && *cp == '{') {
+        length = output.len;
+        state = 1;
+      }
+      else if (state == 1 && *cp != '}') {
+        appendStringInfoCharMacro(&key, *cp);
+        state = 1;
+      }
+      else if (state == 1 && *cp == '}') {
+        state = 0;
+        /* cp++; */
+        continue;
+      }
+    }
+
+    /* // TestStart: Check if key is correct value */
+    /* text *keytest; */
+    /* if (strcmp(key.data, "food") != 0) { */
+    /*   char *keytestreject = "Key is not correct value"; */
+    /*   keytest = cstring_to_text(keytestreject); */
+    /*   PG_RETURN_TEXT_P(keytest); */
+    /* } */
+    /* else { */
+    /*   keytest = cstring_to_text_with_len(key.data, key.len); */
+    /*   PG_RETURN_TEXT_P(keytest); */
+    /* } */
+    /* // TestEnd */
+
+    tkey = cstring_to_text_with_len(key.data, key.len);
+    
+    // look up key in hstore and retrieve value
+    value = DirectFunctionCall2(
+      hstore_fetchval, hstore, (Datum) tkey);
+    /* if (value == (Datum) 0) { */
+    /*   PG_RETURN_NULL(); */
+    /* } */
+
+    /* // TestStart: Return value returned */
+    /* PG_RETURN_TEXT_P(value); */
+    /* // TestEnd */
+
+    strval = text_to_cstring((text*) value);
+    int lenval = strlen(strval);
+
+    /* // TestStart: Check if the value retrieved and converted  matches that in the hstore */
+    /* text *valtest; */
+    /* if (strcmp(strval, "pork") != 0) { */
+    /*   char *valtestreject = "Value is not correct"; */
+    /*   valtest = cstring_to_text(valtestreject); */
+    /*   PG_RETURN_TEXT_P(valtest); */
+    /* } */
+    /* else { */
+    /*   valtest = cstring_to_text_with_len(strval, lenval); */
+    /*   PG_RETURN_TEXT_P(valtest); */
+    /* } */
+    /* // TestEnd */
+
+    // enlarge formatoutput to fit the length of the output until the value and the value
+    enlargeStringInfo(&formatoutput, lenval + length);
+
+    // copy the first part of the input string to the format string
+    memcpy((&formatoutput)->data + (&formatoutput)->len, (&output)->data, length);
+
+    // increment formatoutput length by the amount of the first part of the input string
+    (&formatoutput)->len += length;
+
+    (&formatoutput)->data[(&formatoutput)->len] = '\0';
+
+    /* // TestStart: Check current value of formatoutput */
+    /* text* check = cstring_to_text_with_len(formatoutput.data, formatoutput.len); */
+    /* PG_RETURN_TEXT_P(check); */
+    /* // TestEnd */
+
+    // copy the value retrieved to the end of the formatoutput string
+    memcpy((&formatoutput)->data + (&formatoutput)->len, strval, lenval);
+    (&formatoutput)->len += lenval;
+    (&formatoutput)->data[(&formatoutput)->len] = '\0';
+
+    /* // TestStart: Check current value of formatoutput */
+    /* text* check = cstring_to_text_with_len((&formatoutput)->data, (&formatoutput)->len); */
+    /* PG_RETURN_TEXT_P(check); */
+    /* // TestEnd */
+
+    /* // this copies the rest of the input string after the format value was inserted to the end of the formatoutput string */
+    /* // not sure if this is needed  and it needs to be replaced */
+    memcpy((&formatoutput)->data + (&formatoutput)->len, (&output)->data + length, (&output)->len - length);
+    (&formatoutput)->len += (&output)->len - length;
+    (&formatoutput)->data[(&formatoutput)->len] = '\0';
+
+    length = 0;
+    resetStringInfo(&key);
+    resetStringInfo(&output);
+    tracker = cp;
+    /* continue; */
   }
-
-  /* // TestStart: Return value returned */
-  /* PG_RETURN_TEXT_P(value); */
-  /* // TestEnd */
-
-  strval = text_to_cstring((text*) value);
-  int lenval = strlen(strval);
-
-  /* // TestStart: Check if the value retrieved and converted  matches that in the hstore */
-  /* text *valtest; */
-  /* if (strcmp(strval, "pork") != 0) { */
-  /*   char *valtestreject = "Value is not correct"; */
-  /*   valtest = cstring_to_text(valtestreject); */
-  /*   PG_RETURN_TEXT_P(valtest); */
-  /* } */
-  /* else { */
-  /*   valtest = cstring_to_text_with_len(strval, lenval); */
-  /*   PG_RETURN_TEXT_P(valtest); */
-  /* } */
-  /* // TestEnd */
-
-  initStringInfo(&formatoutput);
-
-  enlargeStringInfo(&formatoutput, lenval + output.len);
-
-  memcpy(formatoutput.data, output.data, length);
-  formatoutput.len += length;
-  formatoutput.data[formatoutput.len] = '\0';
-
   /* // TestStart: Check current value of formatoutput */
-  /* text* check = cstring_to_text_with_len(formatoutput.data, formatoutput.len); */
+  /* text* check = cstring_to_text_with_len((&formatoutput)->data, (&formatoutput)->len); */
   /* PG_RETURN_TEXT_P(check); */
   /* // TestEnd */
-
-  memcpy(formatoutput.data + formatoutput.len, strval, lenval);
-  formatoutput.len += lenval;
-  formatoutput.data[formatoutput.len] = '\0';
-
-  /* // TestStart: Check current value of formatoutput */
-  /* text* check = cstring_to_text_with_len(formatoutput.data, formatoutput.len); */
-  /* PG_RETURN_TEXT_P(check); */
-  /* // TestEnd */
-
-  memcpy(formatoutput.data + formatoutput.len, output.data + length, output.len - length);
-  formatoutput.len += output.len - length;
-  formatoutput.data[formatoutput.len] = '\0';
 
   result = cstring_to_text_with_len(formatoutput.data, formatoutput.len);
 
