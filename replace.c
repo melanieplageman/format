@@ -74,10 +74,12 @@ Datum replace(PG_FUNCTION_ARGS) {
       }
       else if (state == 1 && *cp == '}') {
         state = 0;
-        /* cp++; */
-        continue;
+        cp++;
+        break;
       }
     }
+
+    if (cp == end_ptr) break;
 
     /* // TestStart: Check if key is correct value */
     /* text *keytest; */
@@ -147,18 +149,25 @@ Datum replace(PG_FUNCTION_ARGS) {
     /* PG_RETURN_TEXT_P(check); */
     /* // TestEnd */
 
-    /* // this copies the rest of the input string after the format value was inserted to the end of the formatoutput string */
-    /* // not sure if this is needed  and it needs to be replaced */
-    memcpy((&formatoutput)->data + (&formatoutput)->len, (&output)->data + length, (&output)->len - length);
-    (&formatoutput)->len += (&output)->len - length;
-    (&formatoutput)->data[(&formatoutput)->len] = '\0';
-
     length = 0;
     resetStringInfo(&key);
     resetStringInfo(&output);
     tracker = cp;
     /* continue; */
   }
+  length = output.len;
+
+  // enlarge formatoutput to fit the length of the output until the value and the value
+  enlargeStringInfo(&formatoutput, length);
+
+  // copy the last part of the input string to the format string
+  memcpy((&formatoutput)->data + (&formatoutput)->len, (&output)->data, length);
+
+  // increment formatoutput length by the amount of the last part of the input string
+  (&formatoutput)->len += length;
+
+  (&formatoutput)->data[(&formatoutput)->len] = '\0';
+
   /* // TestStart: Check current value of formatoutput */
   /* text* check = cstring_to_text_with_len((&formatoutput)->data, (&formatoutput)->len); */
   /* PG_RETURN_TEXT_P(check); */
