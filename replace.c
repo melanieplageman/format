@@ -2,6 +2,7 @@
 #include "fmgr.h"
 #include "utils/builtins.h"
 #include "lib/stringinfo.h"
+#include "hstore.h"
 
 #ifdef PG_MODULE_MAGIC
 PG_MODULE_MAGIC;
@@ -13,30 +14,20 @@ PG_FUNCTION_INFO_V1(replace);
 Datum replace(PG_FUNCTION_ARGS) {
   // get user input text
   text *format_string_text = PG_GETARG_TEXT_PP(0);
-  const char *start_ptr;
-  const char *end_ptr;
-  const char *cp;
+  char *start_ptr;
+  char *end_ptr;
+  char *cp;
+  char *key_start_ptr;
+  char *key_end_ptr;
 
-  // upon scan, key stores the text within the format specifier
-  // must be a StringInfoData so appendStringInfoCharMacro can be used
-  StringInfoData key;
   // upon scan, output stores the text before and after the format specifier
   StringInfoData output;
   int state = 0;
 
-  // tkey will store the text version of the StringInfoData key parsed from the format_string_text
-  text *tkey;
+  // define a pointer to a function which receives a pointer to an HStore, an int pointer, a char pointer, and an int and returns an int
+  int (*hstoreFindKey)(HStore*, int*, char*, int) = (int (*)(HStore*, int*, char*, int)) load_external_function("hstore", "hstoreFindKey", true, NULL);
 
-  // get access to the function hstore_fetchval
-  PGFunction hstore_fetchval = load_external_function(
-      "hstore", "hstore_fetchval", true, NULL);
-  // get user input hstore
-  Datum hstore = PG_GETARG_DATUM(1);
-
-  // value will store the result of calling hstore_fetchval with the key
-  Datum value;  
-  // strval will store the converted cstring version of the value
-  char *strval;
+  HStore *hs = (HStore *) PG_GETARG_DATUM(1);
 
   // result is used to store the returned result which is output converted to text
   text *result;
@@ -44,48 +35,34 @@ Datum replace(PG_FUNCTION_ARGS) {
   start_ptr = VARDATA_ANY(format_string_text);
   end_ptr = start_ptr + VARSIZE_ANY_EXHDR(format_string_text);
   initStringInfo(&output);
-  initStringInfo(&key);
 
-  cp = start_ptr;
-  for (; cp < end_ptr; cp++) {
+  HEntry *entries = ARRPTR(hs);
 
+  for (cp = start_ptr; cp < end_ptr; cp++) {
     if (state == 0 && *cp != '{') {
       appendStringInfoCharMacro(&output, *cp);
       state = 0;
     }
     else if (state == 0 && *cp == '{') {
+      key_start_ptr = cp + 1;
       state = 1;
     }
     else if (state == 1 && *cp != '}') {
-      appendStringInfoCharMacro(&key, *cp);
+      key_end_ptr = cp;
       state = 1;
     }
     else if (state == 1 && *cp == '}') {
-      tkey = cstring_to_text_with_len(key.data, key.len);
-      // look up key in hstore and retrieve value
-      value = DirectFunctionCall2(
-        hstore_fetchval, hstore, (Datum) tkey);
-
-      /* if (value == (Datum) 0) { */
-      /*   PG_RETURN_NULL(); */
-      /* } */
-
-      strval = text_to_cstring((text*) value);
-      int lenval = strlen(strval);
-
-      // copy value retrieved to output
-      appendBinaryStringInfo(&output, strval, lenval);
-      resetStringInfo(&key);
-
+      int validx = hstoreFindKey(hs, NULL, key_start_ptr, (key_end_ptr - key_start_ptr) + 1);
+      if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
+        appendBinaryStringInfo(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx));
+      }
       state = 0;
       continue;
     }
-    if (cp == end_ptr) break;
   }
 
   result = cstring_to_text_with_len(output.data, output.len);
 
-  pfree(key.data);
   pfree(output.data);
 
   PG_RETURN_TEXT_P(result);
