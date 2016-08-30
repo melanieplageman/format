@@ -39,25 +39,45 @@ Datum replace(PG_FUNCTION_ARGS) {
   HEntry *entries = ARRPTR(hs);
 
   for (cp = start_ptr; cp < end_ptr; cp++) {
-    if (state == 0 && *cp != '{') {
+    if (state == 0 && *cp != '{' && *cp != '}') {
       appendStringInfoCharMacro(&output, *cp);
       state = 0;
     }
     else if (state == 0 && *cp == '{') {
-      key_start_ptr = cp + 1;
       state = 1;
     }
-    else if (state == 1 && *cp != '}') {
-      key_end_ptr = cp;
-      state = 1;
+    else if (state == 0 && *cp == '}') {
+      state = 3;
+    }
+    else if (state == 1 && *cp != '}' && *cp != '{') {
+      key_start_ptr = cp;
+      state = 2;
+    }
+    else if (state == 1 && *cp == '{') {
+      appendStringInfoCharMacro(&output, *cp);
+      state = 0; 
     }
     else if (state == 1 && *cp == '}') {
+      elog(WARNING, "Blank key");
+      state = 0; 
+      continue;
+    }
+    else if (state == 2 && *cp != '{' & *cp != '}') {
+      key_end_ptr = cp;
+      state = 2;
+    }
+    else if (state == 2 && *cp == '}') {
+      /* key_end_ptr = cp; */
       int validx = hstoreFindKey(hs, NULL, key_start_ptr, (key_end_ptr - key_start_ptr) + 1);
       if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
         appendBinaryStringInfo(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx));
       }
       state = 0;
       continue;
+    }
+    else if (state == 3 && *cp == '}') {
+      appendStringInfoCharMacro(&output, *cp);
+      state = 0;
     }
   }
 
