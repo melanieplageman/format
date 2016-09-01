@@ -73,44 +73,14 @@ Datum replace(PG_FUNCTION_ARGS) {
       // TO-DO: set width
       state = 4;
     }
-    else if (state == 3 && *cp == 's') {
-      int validx = hstoreFindKey(hs, NULL, key_start_ptr, length);
-      if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
-        output_append(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx), 's');
-      }
-      else {
-        StringInfoData testkey;
-        initStringInfo(&testkey);
-        appendBinaryStringInfo(&testkey, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx));
-        elog(WARNING, "Invalid key: %s\n", testkey.data);
-      }
-      state = 0;
-      continue;
-    }
-    else if (state == 3 && *cp == 'I') {
-      int validx = hstoreFindKey(hs, NULL, key_start_ptr, length);
-      if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
-        output_append(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx), 'I');
-      }
-      state = 0;
-      continue;
-    }
-    else if (state == 3 && *cp == 'L') {
-      int validx = hstoreFindKey(hs, NULL, key_start_ptr, length);
-      if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
-        output_append(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx), 'L');
-      }
-      state = 0;
-      continue;
-    }
     else if (state == 4 && *cp >= '0' && *cp <= '9') {
       // TO-DO: modify mwidth
       state = 4;
     }
-    else if (state == 4 && *cp == 's') {
+    else if ((state == 3 || state == 4) && (*cp == 's' || *cp == 'I' || *cp == 'L')) {
       int validx = hstoreFindKey(hs, NULL, key_start_ptr, length);
       if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
-        output_append(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx), 's');
+        output_append(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx), 'I');
       }
       else {
         StringInfoData testkey;
@@ -119,23 +89,6 @@ Datum replace(PG_FUNCTION_ARGS) {
         elog(WARNING, "Invalid key: %s\n", testkey.data);
       }
       state = 0;
-      continue;
-    }
-    else if (state == 4 && *cp == 'I') {
-      int validx = hstoreFindKey(hs, NULL, key_start_ptr, length);
-      if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
-        output_append(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx), 'I');
-      }
-      state = 0;
-      continue;
-    }
-    else if (state == 4 && *cp == 'L') {
-      int validx = hstoreFindKey(hs, NULL, key_start_ptr, length);
-      if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
-        output_append(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx), 'L');
-      }
-      state = 0;
-      continue;
     }
   }
 
