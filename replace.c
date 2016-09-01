@@ -39,36 +39,37 @@ Datum replace(PG_FUNCTION_ARGS) {
   HEntry *entries = ARRPTR(hs);
 
   for (cp = start_ptr; cp < end_ptr; cp++) {
-    if (state == 0 && *cp != '{' && *cp != '}') {
+    if (state == 0 && *cp != '%') {
       appendStringInfoCharMacro(&output, *cp);
       state = 0;
     }
-    else if (state == 0 && *cp == '{') {
+    else if (state == 0 && *cp == '%') {
       state = 1;
     }
-    else if (state == 0 && *cp == '}') {
-      state = 3;
-    }
-    else if (state == 1 && *cp != '}' && *cp != '{') {
-      key_start_ptr = cp;
-      state = 2;
-    }
-    else if (state == 1 && *cp == '{') {
+    else if (state == 1 && *cp == '%') {
       appendStringInfoCharMacro(&output, *cp);
       state = 0; 
     }
-    else if (state == 1 && *cp == '}') {
-      key_end_ptr = cp;
-      state = 4;
-    }
-    else if (state == 2 && *cp != '{' & *cp != '}') {
+    else if (state == 1 && *cp == '(') {
+      key_start_ptr = cp + 1;
       state = 2;
     }
-    else if (state == 2 && *cp == '}') {
+    else if (state == 2 && *cp != '(' && *cp != ')') {
+      state = 2;
+    }
+    else if (state == 2 && *cp == ')') {
       key_end_ptr = cp - 1;
+      state = 3;
+    }
+    else if (state == 3 && *cp == '-') {
+      // TO-DO: set conversion flag
+      state = 3;
+    }
+    else if (state == 3 && *cp >= '1' && *cp <= '9') {
+      // TO-DO: set width
       state = 4;
     }
-    else if (state == 4 && *cp == 's') {
+    else if (state == 3 && *cp == 's') {
       int validx = hstoreFindKey(hs, NULL, key_start_ptr, (key_end_ptr - key_start_ptr) + 1);
       if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
         appendBinaryStringInfo(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx));
@@ -83,7 +84,20 @@ Datum replace(PG_FUNCTION_ARGS) {
       state = 0;
       continue;
     }
-    else if (state == 4 && *cp == 'L') {
+    else if (state == 3 && *cp == 'I') {
+      int validx = hstoreFindKey(hs, NULL, key_start_ptr, (key_end_ptr - key_start_ptr) + 1);
+      if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
+        const char *istring = quote_identifier(HSTORE_VAL(entries, STRPTR(hs), validx));
+        int ilength = strlen(istring);
+        appendBinaryStringInfo(&output, istring, ilength);
+      }
+      else {
+        elog(WARNING, "Start char: %c End char: %c\n", *key_start_ptr, *key_end_ptr);
+      }
+      state = 0;
+      continue;
+    }
+    else if (state == 3 && *cp == 'L') {
       int validx = hstoreFindKey(hs, NULL, key_start_ptr, (key_end_ptr - key_start_ptr) + 1);
       if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
         char *lstring = quote_literal_cstr(HSTORE_VAL(entries, STRPTR(hs), validx));
@@ -92,6 +106,25 @@ Datum replace(PG_FUNCTION_ARGS) {
         pfree(lstring);
       }
       else {
+        elog(WARNING, "Start char: %c End char: %c\n", *key_start_ptr, *key_end_ptr);
+      }
+      state = 0;
+      continue;
+    }
+    else if (state == 4 && *cp >= '0' && *cp <= '9') {
+      // TO-DO: modify mwidth
+      state = 4;
+    }
+    else if (state == 4 && *cp == 's') {
+      int validx = hstoreFindKey(hs, NULL, key_start_ptr, (key_end_ptr - key_start_ptr) + 1);
+      if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
+        appendBinaryStringInfo(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx));
+      }
+      else {
+        StringInfoData testkey;
+        initStringInfo(&testkey);
+        appendBinaryStringInfo(&testkey, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx));
+        elog(WARNING, "Invalid key: %s\n", testkey.data);
         elog(WARNING, "Start char: %c End char: %c\n", *key_start_ptr, *key_end_ptr);
       }
       state = 0;
@@ -110,9 +143,19 @@ Datum replace(PG_FUNCTION_ARGS) {
       state = 0;
       continue;
     }
-    else if (state == 3 && *cp == '}') {
-      appendStringInfoCharMacro(&output, *cp);
+    else if (state == 4 && *cp == 'L') {
+      int validx = hstoreFindKey(hs, NULL, key_start_ptr, (key_end_ptr - key_start_ptr) + 1);
+      if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
+        char *lstring = quote_literal_cstr(HSTORE_VAL(entries, STRPTR(hs), validx));
+        int llength = strlen(lstring);
+        appendBinaryStringInfo(&output, lstring, llength);
+        pfree(lstring);
+      }
+      else {
+        elog(WARNING, "Start char: %c End char: %c\n", *key_start_ptr, *key_end_ptr);
+      }
       state = 0;
+      continue;
     }
   }
 
