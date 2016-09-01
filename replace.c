@@ -8,6 +8,7 @@
 PG_MODULE_MAGIC;
 #endif
 
+char *hstore_lookup(HStore *hs, char *key, int keylen, int *vallenp);
 void output_append(StringInfoData *output, char *val, int vallen, char type);
 
 Datum replace(PG_FUNCTION_ARGS);
@@ -19,15 +20,12 @@ Datum replace(PG_FUNCTION_ARGS) {
   char *start_ptr;
   char *end_ptr;
   char *cp;
-  char *key_start_ptr;
+  char *key_ptr;
   int length; // use int for length to accomodate hstoreFindKey()
 
   // upon scan, output stores the text before and after the format specifier
   StringInfoData output;
   int state = 0;
-
-  // define a pointer to a function which receives a pointer to an HStore, an int pointer, a char pointer, and an int and returns an int
-  int (*hstoreFindKey)(HStore*, int*, char*, int) = (int (*)(HStore*, int*, char*, int)) load_external_function("hstore", "hstoreFindKey", true, NULL);
 
   HStore *hs = (HStore *) PG_GETARG_DATUM(1);
 
@@ -37,8 +35,6 @@ Datum replace(PG_FUNCTION_ARGS) {
   start_ptr = VARDATA_ANY(format_string_text);
   end_ptr = start_ptr + VARSIZE_ANY_EXHDR(format_string_text);
   initStringInfo(&output);
-
-  HEntry *entries = ARRPTR(hs);
 
   for (cp = start_ptr; cp < end_ptr; cp++) {
     if (state == 0 && *cp != '%') {
@@ -53,7 +49,7 @@ Datum replace(PG_FUNCTION_ARGS) {
       state = 0; 
     }
     else if (state == 1 && *cp == '(') {
-      key_start_ptr = cp + 1;
+      key_ptr = cp + 1;
       length = 0;
       state = 2;
     }
@@ -78,16 +74,10 @@ Datum replace(PG_FUNCTION_ARGS) {
       state = 4;
     }
     else if ((state == 3 || state == 4) && (*cp == 's' || *cp == 'I' || *cp == 'L')) {
-      int validx = hstoreFindKey(hs, NULL, key_start_ptr, length);
-      if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
-        output_append(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx), 'I');
-      }
-      else {
-        StringInfoData testkey;
-        initStringInfo(&testkey);
-        appendBinaryStringInfo(&testkey, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx));
-        elog(WARNING, "Invalid key: %s\n", testkey.data);
-      }
+      int vallen;
+      char *val = hstore_lookup(hs, key_ptr, length, &vallen);
+      if (val != NULL)
+        output_append(&output, val, vallen, *cp);
       state = 0;
     }
   }
@@ -99,16 +89,35 @@ Datum replace(PG_FUNCTION_ARGS) {
   PG_RETURN_TEXT_P(result);
 }
 
+char *hstore_lookup(HStore *hs, char *key, int keylen, int *vallenp) {
+  // define a pointer to a function which receives a pointer to an HStore, an int pointer, a char pointer, and an int and returns an int
+  int (*hstoreFindKey)(HStore*, int*, char*, int) = (int (*)(HStore*, int*, char*, int)) load_external_function("hstore", "hstoreFindKey", true, NULL);
+
+  int idx = hstoreFindKey(hs, NULL, key, keylen);
+
+  if (idx < 0) {
+    elog(WARNING, "Invalid key\n");
+    return NULL;
+  }
+  if (HSTORE_VALISNULL(ARRPTR(hs), idx)) {
+    elog(WARNING, "Null value\n");
+    return NULL;
+  }
+
+  *vallenp = HSTORE_VALLEN(ARRPTR(hs), idx);
+  return HSTORE_VAL(ARRPTR(hs), STRPTR(hs), idx);
+}
+
 void output_append(StringInfoData *output, char *val, int vallen, char type) {
-  const char *string = val;
+  char *string = val;
   int length = vallen;
 
   if (type == 'I') {
-    string = quote_identifier(val);
+    string = (char *) quote_identifier(val);
     length = strlen(string);
   }
   else if (type == 'L') {
-    string = quote_literal_cstr(val);
+    string = (char *) quote_literal_cstr(val);
     length = strlen(string);
   }
   appendBinaryStringInfo(output, string, length);
