@@ -8,6 +8,8 @@
 PG_MODULE_MAGIC;
 #endif
 
+void output_append(StringInfoData *output, char *val, int vallen, char type);
+
 Datum replace(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(replace);
 
@@ -74,7 +76,7 @@ Datum replace(PG_FUNCTION_ARGS) {
     else if (state == 3 && *cp == 's') {
       int validx = hstoreFindKey(hs, NULL, key_start_ptr, length);
       if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
-        appendBinaryStringInfo(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx));
+        output_append(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx), 's');
       }
       else {
         StringInfoData testkey;
@@ -88,9 +90,7 @@ Datum replace(PG_FUNCTION_ARGS) {
     else if (state == 3 && *cp == 'I') {
       int validx = hstoreFindKey(hs, NULL, key_start_ptr, length);
       if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
-        const char *istring = quote_identifier(HSTORE_VAL(entries, STRPTR(hs), validx));
-        int ilength = strlen(istring);
-        appendBinaryStringInfo(&output, istring, ilength);
+        output_append(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx), 'I');
       }
       state = 0;
       continue;
@@ -98,10 +98,7 @@ Datum replace(PG_FUNCTION_ARGS) {
     else if (state == 3 && *cp == 'L') {
       int validx = hstoreFindKey(hs, NULL, key_start_ptr, length);
       if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
-        char *lstring = quote_literal_cstr(HSTORE_VAL(entries, STRPTR(hs), validx));
-        int llength = strlen(lstring);
-        appendBinaryStringInfo(&output, lstring, llength);
-        pfree(lstring);
+        output_append(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx), 'L');
       }
       state = 0;
       continue;
@@ -113,7 +110,7 @@ Datum replace(PG_FUNCTION_ARGS) {
     else if (state == 4 && *cp == 's') {
       int validx = hstoreFindKey(hs, NULL, key_start_ptr, length);
       if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
-        appendBinaryStringInfo(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx));
+        output_append(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx), 's');
       }
       else {
         StringInfoData testkey;
@@ -127,9 +124,7 @@ Datum replace(PG_FUNCTION_ARGS) {
     else if (state == 4 && *cp == 'I') {
       int validx = hstoreFindKey(hs, NULL, key_start_ptr, length);
       if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
-        const char *istring = quote_identifier(HSTORE_VAL(entries, STRPTR(hs), validx));
-        int ilength = strlen(istring);
-        appendBinaryStringInfo(&output, istring, ilength);
+        output_append(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx), 'I');
       }
       state = 0;
       continue;
@@ -137,10 +132,7 @@ Datum replace(PG_FUNCTION_ARGS) {
     else if (state == 4 && *cp == 'L') {
       int validx = hstoreFindKey(hs, NULL, key_start_ptr, length);
       if (validx >= 0 && !HSTORE_VALISNULL(entries, validx)) {
-        char *lstring = quote_literal_cstr(HSTORE_VAL(entries, STRPTR(hs), validx));
-        int llength = strlen(lstring);
-        appendBinaryStringInfo(&output, lstring, llength);
-        pfree(lstring);
+        output_append(&output, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx), 'L');
       }
       state = 0;
       continue;
@@ -152,4 +144,22 @@ Datum replace(PG_FUNCTION_ARGS) {
   pfree(output.data);
 
   PG_RETURN_TEXT_P(result);
+}
+
+void output_append(StringInfoData *output, char *val, int vallen, char type) {
+  const char *string = val;
+  int length = vallen;
+
+  if (type == 'I') {
+    string = quote_identifier(val);
+    length = strlen(string);
+  }
+  else if (type == 'L') {
+    string = quote_literal_cstr(val);
+    length = strlen(string);
+  }
+  appendBinaryStringInfo(output, string, length);
+
+  if (type == 'L')
+    pfree(string);
 }
