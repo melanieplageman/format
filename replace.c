@@ -18,7 +18,7 @@ Datum replace(PG_FUNCTION_ARGS) {
   char *end_ptr;
   char *cp;
   char *key_start_ptr;
-  size_t length;
+  int length; // use int for length to accomodate hstoreFindKey()
 
   // upon scan, output stores the text before and after the format specifier
   StringInfoData output;
@@ -81,7 +81,6 @@ Datum replace(PG_FUNCTION_ARGS) {
         initStringInfo(&testkey);
         appendBinaryStringInfo(&testkey, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx));
         elog(WARNING, "Invalid key: %s\n", testkey.data);
-        elog(WARNING, "Start char: %c End char: %c\n", *key_start_ptr, *(key_start_ptr + length));
       }
       state = 0;
       continue;
@@ -93,9 +92,6 @@ Datum replace(PG_FUNCTION_ARGS) {
         int ilength = strlen(istring);
         appendBinaryStringInfo(&output, istring, ilength);
       }
-      else {
-        elog(WARNING, "Start char: %c End char: %c\n", *key_start_ptr, *(key_start_ptr + length));
-      }
       state = 0;
       continue;
     }
@@ -106,9 +102,6 @@ Datum replace(PG_FUNCTION_ARGS) {
         int llength = strlen(lstring);
         appendBinaryStringInfo(&output, lstring, llength);
         pfree(lstring);
-      }
-      else {
-        elog(WARNING, "Start char: %c End char: %c\n", *key_start_ptr, *(key_start_ptr + length));
       }
       state = 0;
       continue;
@@ -127,8 +120,6 @@ Datum replace(PG_FUNCTION_ARGS) {
         initStringInfo(&testkey);
         appendBinaryStringInfo(&testkey, HSTORE_VAL(entries, STRPTR(hs), validx), HSTORE_VALLEN(entries, validx));
         elog(WARNING, "Invalid key: %s\n", testkey.data);
-        /* elog(WARNING, "Start char: %c End char: %c\n", *key_start_ptr, *key_end_ptr); */
-        elog(WARNING, "Start char: %c End char: %c\n", *key_start_ptr, *(key_start_ptr + length));
       }
       state = 0;
       continue;
@@ -140,9 +131,6 @@ Datum replace(PG_FUNCTION_ARGS) {
         int ilength = strlen(istring);
         appendBinaryStringInfo(&output, istring, ilength);
       }
-      else {
-        elog(WARNING, "Start char: %c End char: %c\n", *key_start_ptr, *(key_start_ptr + length));
-      }
       state = 0;
       continue;
     }
@@ -153,9 +141,6 @@ Datum replace(PG_FUNCTION_ARGS) {
         int llength = strlen(lstring);
         appendBinaryStringInfo(&output, lstring, llength);
         pfree(lstring);
-      }
-      else {
-        elog(WARNING, "Start char: %c End char: %c\n", *key_start_ptr, *(key_start_ptr + length));
       }
       state = 0;
       continue;
