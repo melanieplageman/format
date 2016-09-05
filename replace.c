@@ -15,17 +15,16 @@ Datum replace(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(replace);
 
 Datum replace(PG_FUNCTION_ARGS) {
-  // get user input text
-  text *format_string_text = PG_GETARG_TEXT_PP(0);
+  text *format_string_text;
   char *start_ptr;
   char *end_ptr;
   char *cp;
   char *key_ptr;
   int length; // use int for length to accomodate hstoreFindKey()
   int width = 0;
-  bool align_to_left = false;
+  bool align_to_left = false; // used for conversion flag
 
-  // upon scan, output stores the text before and after the format specifier
+  // output is the running string to which text is being appended during the scanning and parsing
   StringInfoData output;
   int state = 0;
 
@@ -33,6 +32,11 @@ Datum replace(PG_FUNCTION_ARGS) {
 
   // result is used to store the returned result which is output converted to text
   text *result;
+
+  if (PG_ARGISNULL(0))
+    PG_RETURN_NULL();
+  
+  format_string_text = PG_GETARG_TEXT_PP(0);
 
   start_ptr = VARDATA_ANY(format_string_text);
   end_ptr = start_ptr + VARSIZE_ANY_EXHDR(format_string_text);
@@ -114,11 +118,7 @@ void output_append(StringInfoData *output, char *val, int vallen, char type, int
   char *string = val;
   int length = vallen;
 
-  if (type == 's') {
-    appendBinaryStringInfo(output, string, length);
-    length = strlen(string);
-  }
-  else if (type == 'I') {
+  if (type == 'I') {
     string = (char *) quote_identifier(val);
     length = strlen(string);
   }
@@ -126,8 +126,10 @@ void output_append(StringInfoData *output, char *val, int vallen, char type, int
     string = (char *) quote_literal_cstr(val);
     length = strlen(string);
   }
+
   if (width == 0) {
     appendBinaryStringInfo(output, string, length);
+    return;
   }
 
   if (align_to_left) {
@@ -142,6 +144,7 @@ void output_append(StringInfoData *output, char *val, int vallen, char type, int
     if (length < width) {
       appendStringInfoSpaces(output, width - length);
     }
+    appendBinaryStringInfo(output, string, length);
   }
 
   if (type == 'L') {
