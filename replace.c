@@ -9,7 +9,7 @@ PG_MODULE_MAGIC;
 #endif
 
 char *hstore_lookup(HStore *hs, char *key, int keylen, int *vallenp);
-void output_append(StringInfoData *output, char *val, int vallen, char type);
+void output_append(StringInfoData *output, char *val, int vallen, char type, int width, bool align_to_left);
 
 Datum replace(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(replace);
@@ -22,6 +22,8 @@ Datum replace(PG_FUNCTION_ARGS) {
   char *cp;
   char *key_ptr;
   int length; // use int for length to accomodate hstoreFindKey()
+  int width = 0;
+  bool align_to_left = false;
 
   // upon scan, output stores the text before and after the format specifier
   StringInfoData output;
@@ -62,22 +64,22 @@ Datum replace(PG_FUNCTION_ARGS) {
       state = 3;
     }
     else if (state == 3 && *cp == '-') {
-      // TO-DO: set conversion flag
+      align_to_left = true;
       state = 3;
     }
     else if (state == 3 && *cp >= '1' && *cp <= '9') {
-      // TO-DO: set width
+      width = *cp - '0'; 
       state = 4;
     }
     else if (state == 4 && *cp >= '0' && *cp <= '9') {
-      // TO-DO: modify mwidth
+      width = width * 10 + (*cp - '0');
       state = 4;
     }
     else if ((state == 3 || state == 4) && (*cp == 's' || *cp == 'I' || *cp == 'L')) {
       int vallen;
       char *val = hstore_lookup(hs, key_ptr, length, &vallen);
       if (val != NULL)
-        output_append(&output, val, vallen, *cp);
+        output_append(&output, val, vallen, *cp, width, align_to_left);
       state = 0;
     }
   }
@@ -108,11 +110,15 @@ char *hstore_lookup(HStore *hs, char *key, int keylen, int *vallenp) {
   return HSTORE_VAL(ARRPTR(hs), STRPTR(hs), idx);
 }
 
-void output_append(StringInfoData *output, char *val, int vallen, char type) {
+void output_append(StringInfoData *output, char *val, int vallen, char type, int width, bool align_to_left) {
   char *string = val;
   int length = vallen;
 
-  if (type == 'I') {
+  if (type == 's') {
+    appendBinaryStringInfo(output, string, length);
+    length = strlen(string);
+  }
+  else if (type == 'I') {
     string = (char *) quote_identifier(val);
     length = strlen(string);
   }
@@ -120,8 +126,26 @@ void output_append(StringInfoData *output, char *val, int vallen, char type) {
     string = (char *) quote_literal_cstr(val);
     length = strlen(string);
   }
-  appendBinaryStringInfo(output, string, length);
+  if (width == 0) {
+    appendBinaryStringInfo(output, string, length);
+  }
 
-  if (type == 'L')
+  if (align_to_left) {
+    // left justify
+    appendBinaryStringInfo(output, string, length);
+    if (length < width) {
+      appendStringInfoSpaces(output, width - length);
+    }
+  }
+  else {
+    // right justify
+    if (length < width) {
+      appendStringInfoSpaces(output, width - length);
+    }
+  }
+
+  if (type == 'L') {
     pfree(string);
+  }
+
 }
