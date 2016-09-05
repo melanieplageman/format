@@ -59,33 +59,58 @@ Datum replace(PG_FUNCTION_ARGS) {
       length = 0;
       state = 2;
     }
+    else if (state == 1 && *cp != '(' && *cp != '%') {
+      elog(ERROR, "Unsupported format character %c\n", *cp);
+    }
+    else if (state == 2 && *cp == '(') {
+      elog(ERROR, "Incomplete format key");
+    }
     else if (state == 2 && *cp != '(' && *cp != ')') {
       length += 1;
       state = 2;
     }
     else if (state == 2 && *cp == ')') {
-      /* key_end_ptr = cp - 1; */
       state = 3;
     }
-    else if (state == 3 && *cp == '-') {
-      align_to_left = true;
-      state = 3;
+    else if (state == 3) {
+      if (*cp == '-') {
+        align_to_left = true;
+        state = 3;
+      }
+      else if (*cp >= '1' && *cp <= '9') {
+        width = *cp - '0'; 
+        state = 4;
+      }
+      else if (*cp == 's' || *cp == 'I' || *cp == 'L') {
+        int vallen;
+        char *val = hstore_lookup(hs, key_ptr, length, &vallen);
+        if (val != NULL)
+          output_append(&output, val, vallen, *cp, width, align_to_left);
+        state = 0;
+      }
+      else {
+        elog(ERROR, "Unsupported format character %c\n", *cp);
+      }
     }
-    else if (state == 3 && *cp >= '1' && *cp <= '9') {
-      width = *cp - '0'; 
-      state = 4;
+    else if (state == 4) {
+      if (*cp >= '0' && *cp <= '9') {
+        width = width * 10 + (*cp - '0');
+        state = 4;
+      }
+      else if (*cp == 's' || *cp == 'I' || *cp == 'L') {
+        int vallen;
+        char *val = hstore_lookup(hs, key_ptr, length, &vallen);
+        if (val != NULL)
+          output_append(&output, val, vallen, *cp, width, align_to_left);
+        state = 0;
+      }
+      else {
+        elog(ERROR, "Unsupported format character %c\n", *cp);
+      }
     }
-    else if (state == 4 && *cp >= '0' && *cp <= '9') {
-      width = width * 10 + (*cp - '0');
-      state = 4;
-    }
-    else if ((state == 3 || state == 4) && (*cp == 's' || *cp == 'I' || *cp == 'L')) {
-      int vallen;
-      char *val = hstore_lookup(hs, key_ptr, length, &vallen);
-      if (val != NULL)
-        output_append(&output, val, vallen, *cp, width, align_to_left);
-      state = 0;
-    }
+  }
+  if (state != 0) {
+    elog(ERROR, "Invalid format string\n");
   }
 
   result = cstring_to_text_with_len(output.data, output.len);
