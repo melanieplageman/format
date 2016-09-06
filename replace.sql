@@ -1,4 +1,0 @@
-CREATE OR REPLACE FUNCTION replace(string TEXT, h HSTORE)
-  RETURNS TEXT AS
-'replace.so', 'replace'
-LANGUAGE C IMMUTABLE STRICT;
