@@ -10,6 +10,7 @@ PG_MODULE_MAGIC;
 
 char *hstore_lookup(HStore *hs, char *key, int keylen, int *vallenp);
 void output_append(StringInfoData *output, char *val, int vallen, char type, int width, bool align_to_left);
+char *option_format(StringInfoData *output, char *string, int length, int width, bool align_to_left);
 
 // Returns a formatted string when provided with named arguments
 Datum replace(PG_FUNCTION_ARGS);
@@ -162,23 +163,11 @@ char *hstore_lookup(HStore *hs, char *key, int keylen, int *vallenp) {
   return HSTORE_VAL(ARRPTR(hs), STRPTR(hs), idx);
 }
 
-void output_append(StringInfoData *output, char *val, int vallen, char type, int width, bool align_to_left) {
-  char *string = val;
-  int length = vallen;
-
-  if (type == 'I') {
-    string = (char *) quote_identifier(val);
-    length = strlen(string);
-  }
-  else if (type == 'L') {
-    string = (char *) quote_literal_cstr(val);
-    length = strlen(string);
-  }
-
+char *option_format(StringInfoData *output, char *string, int length, int width, bool align_to_left) {
   // Parse the optional portions of the format specifier
   if (width == 0) {
     appendBinaryStringInfo(output, string, length);
-    return;
+    return string;
   }
 
   if (align_to_left) {
@@ -195,6 +184,25 @@ void output_append(StringInfoData *output, char *val, int vallen, char type, int
     }
     appendBinaryStringInfo(output, string, length);
   }
+  return string;
+}
+
+void output_append(StringInfoData *output, char *val, int vallen, char type, int width, bool align_to_left) {
+  char *string = palloc(vallen * sizeof(char) + 1);
+  memcpy(string, val, vallen);
+  string[vallen] = '\0';
+  int length = vallen;
+
+  if (type == 'I') {
+    string = (char *) quote_identifier(string);
+    length = strlen(string);
+  }
+  else if (type == 'L') {
+    string = (char *) quote_literal_cstr(string);
+    length = strlen(string);
+  }
+
+  string = option_format(output, string, length, width, align_to_left);
 
   if (type == 'L') {
     pfree(string);

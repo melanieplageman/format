@@ -1,8 +1,96 @@
 CREATE EXTENSION hstore;
 CREATE EXTENSION format;
-SELECT format('Barry eats %(food)s', hstore('food', 'pork'));
+-- Format specifiers can occur anywhere in the format string
+SELECT format('%(name)s Hello', hstore('name', 'World'));
+   format    
+-------------
+ World Hello
+(1 row)
+
+SELECT format('<%(name)s> Hello', hstore('name', 'World'));
+    format     
+---------------
+ <World> Hello
+(1 row)
+
+SELECT format('Hello %(name)s', hstore('name', 'World'));
+   format    
+-------------
+ Hello World
+(1 row)
+
+SELECT format('Hello <%(name)s>', hstore('name', 'World'));
+    format     
+---------------
+ Hello <World>
+(1 row)
+
+SELECT format('A %(name)s B', hstore('name', 'World'));
+  format   
+-----------
+ A World B
+(1 row)
+
+-- Format specifier with unmatched key
+SELECT format('%(hi)s %(name)s', hstore('name', 'World'));
+WARNING:  Invalid key
+
+ format 
+--------
+  World
+(1 row)
+
+-- Format specifier with matched key but null value
+SELECT format('Hello %(name)s', hstore('name', NULL));
+WARNING:  Null value
+
+ format 
+--------
+ Hello 
+(1 row)
+
+-- Format specifier with punctuation in key name
+SELECT format('Hello %(na!me)s', hstore('na!me', NULL));
+WARNING:  Null value
+
+ format 
+--------
+ Hello 
+(1 row)
+
+-- s, I, and L are type specifiers
+SELECT format('%(name)s is %(type)s', hstore(ARRAY[
+    'name', 'Melanie', 'type', 'cool']));
      format      
 -----------------
- Barry eats pork
+ Melanie is cool
+(1 row)
+
+SELECT format('%(name)s is %(type)I', hstore(ARRAY[
+    'name', 'Melanie', 'type', 'cool']));
+     format      
+-----------------
+ Melanie is cool
+(1 row)
+
+SELECT format('%(name)s is %(type)L', hstore(ARRAY[
+    'name', 'Melanie', 'type', 'cool']));
+      format       
+-------------------
+ Melanie is 'cool'
+(1 row)
+
+SELECT format('%(name)I is %(type)I', hstore(ARRAY[
+    'name', 'Melanie', 'type', 'cool']));
+      format       
+-------------------
+ "Melanie" is cool
+(1 row)
+
+SELECT format('%(name)L is %(type)L', hstore(ARRAY[
+    'name', 'Melanie', 'type', 'cool']));
+       format        
+---------------------
+ 'Melanie' is 'cool'
 (1 row)
 
