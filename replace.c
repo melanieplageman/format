@@ -11,6 +11,7 @@ PG_MODULE_MAGIC;
 char *hstore_lookup(HStore *hs, char *key, int keylen, int *vallenp);
 void output_append(StringInfoData *output, char *val, int vallen, char type, int width, bool align_to_left);
 
+// Returns a formatted string when provided with named arguments
 Datum replace(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(replace);
 
@@ -33,6 +34,7 @@ Datum replace(PG_FUNCTION_ARGS) {
   // result is used to store the returned result which is output converted to text
   text *result;
 
+  // If format string is NULL, return NULL
   if (PG_ARGISNULL(0))
     PG_RETURN_NULL();
   
@@ -42,7 +44,9 @@ Datum replace(PG_FUNCTION_ARGS) {
   end_ptr = start_ptr + VARSIZE_ANY_EXHDR(format_string_text);
   initStringInfo(&output);
 
+  // Scan format string looking for format specifiers, conversion flags, and specified width
   for (cp = start_ptr; cp < end_ptr; cp++) {
+    // If text is not the start of a format specifier, append it to output
     if (state == 0 && *cp != '%') {
       appendStringInfoCharMacro(&output, *cp);
       state = 0;
@@ -50,21 +54,26 @@ Datum replace(PG_FUNCTION_ARGS) {
     else if (state == 0 && *cp == '%') {
       state = 1;
     }
+    // If two contiguous format start specifiers, '%', are found, consider it an escaped '%' character and append as usual
     else if (state == 1 && *cp == '%') {
       appendStringInfoCharMacro(&output, *cp);
       state = 0; 
     }
+    // If a single format start specifier is followed by a '(' character, set key_ptr and initialize length
     else if (state == 1 && *cp == '(') {
       key_ptr = cp + 1;
       length = 0;
       state = 2;
     }
+    // If a single format start specifier is followed by any character other than a '%' or a '(', this is an error
     else if (state == 1 && *cp != '(' && *cp != '%') {
       elog(ERROR, "Unsupported format character %c\n", *cp);
     }
+    // If a '%' is followed by a '(' follwed by another '(', this is an error
     else if (state == 2 && *cp == '(') {
       elog(ERROR, "Incomplete format key");
     }
+    // Format specifier key text
     else if (state == 2 && *cp != '(' && *cp != ')') {
       length += 1;
       state = 2;
@@ -72,6 +81,9 @@ Datum replace(PG_FUNCTION_ARGS) {
     else if (state == 2 && *cp == ')') {
       state = 3;
     }
+    // A ')' character must be followed by at least a format type (either 's', 'I', or 'L')
+    // and can optionally be followed by a conversion flag ('-') and a width before the format type character
+    // These must appear in the order 1) conversion flag 2) width 3) format type
     else if (state == 3) {
       if (*cp == '-') {
         align_to_left = true;
@@ -81,6 +93,8 @@ Datum replace(PG_FUNCTION_ARGS) {
         width = *cp - '0'; 
         state = 4;
       }
+      // Once the format type character is found, the format specifier is complete and the key is available for
+      // lookup in the provided hstore. Once the value is found, it is appended to output in the usual way
       else if (*cp == 's' || *cp == 'I' || *cp == 'L') {
         int vallen;
         char *val = hstore_lookup(hs, key_ptr, length, &vallen);
@@ -88,10 +102,12 @@ Datum replace(PG_FUNCTION_ARGS) {
           output_append(&output, val, vallen, *cp, width, align_to_left);
         state = 0;
       }
+      // If characters other than a conversion flag, format type, or width are found, this is an error
       else {
         elog(ERROR, "Unsupported format character %c\n", *cp);
       }
     }
+    // Cover the case in which the width is more than one digit
     else if (state == 4) {
       if (*cp >= '0' && *cp <= '9') {
         width = width * 10 + (*cp - '0');
@@ -109,10 +125,13 @@ Datum replace(PG_FUNCTION_ARGS) {
       }
     }
   }
+  // State must be 0 by the end of the format string. A non-zero state at the end of a format string indicates a malformed string
+  // This could be due to lack of required specifiers, such as format type
   if (state != 0) {
     elog(ERROR, "Invalid format string\n");
   }
 
+  // Convert the c string to PostgreSQL text to be returned
   result = cstring_to_text_with_len(output.data, output.len);
 
   pfree(output.data);
@@ -120,16 +139,20 @@ Datum replace(PG_FUNCTION_ARGS) {
   PG_RETURN_TEXT_P(result);
 }
 
+// Perform the hstore lookup
 char *hstore_lookup(HStore *hs, char *key, int keylen, int *vallenp) {
   // define a pointer to a function which receives a pointer to an HStore, an int pointer, a char pointer, and an int and returns an int
   int (*hstoreFindKey)(HStore*, int*, char*, int) = (int (*)(HStore*, int*, char*, int)) load_external_function("hstore", "hstoreFindKey", true, NULL);
 
   int idx = hstoreFindKey(hs, NULL, key, keylen);
 
+  // If a key is invalid, scanning will still continue, in the case that there are other valid keys in the format string
   if (idx < 0) {
     elog(WARNING, "Invalid key\n");
     return NULL;
   }
+  // A NULL key is not an error, as this could be a valid HStore key, however, a warning appears in the case this was
+  // unintentional on the part of the user
   if (HSTORE_VALISNULL(ARRPTR(hs), idx)) {
     elog(WARNING, "Null value\n");
     return NULL;
@@ -152,6 +175,7 @@ void output_append(StringInfoData *output, char *val, int vallen, char type, int
     length = strlen(string);
   }
 
+  // Parse the optional portions of the format specifier
   if (width == 0) {
     appendBinaryStringInfo(output, string, length);
     return;
