@@ -32,5 +32,4 @@
 *.dSYM/
 *.su
 
-# Test files
-test.sql
+!expected/*.out
