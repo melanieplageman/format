@@ -3,5 +3,5 @@
 
 CREATE OR REPLACE FUNCTION format(string TEXT, h HSTORE)
   RETURNS TEXT AS
-'replace.so', 'replace'
+'format_hstore.so', 'format_hstore'
 LANGUAGE C IMMUTABLE STRICT;

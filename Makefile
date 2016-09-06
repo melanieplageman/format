@@ -1,4 +1,4 @@
-MODULES = replace
+MODULES = format_hstore
 EXTENSION = format
 DATA = format--1.0.sql
 REGRESS = format
