@@ -29,13 +29,17 @@ SELECT format('%(name)s is %(type)s', hstore(ARRAY[
     'name', 'Melanie', 'type', 'cool']));
 
 SELECT format('%(name)s is %(type)I', hstore(ARRAY[
-    'name', 'Melanie', 'type', 'cool']));
+    'name', 'Melanie', 'type', 'Cool']));
 
 SELECT format('%(name)s is %(type)L', hstore(ARRAY[
     'name', 'Melanie', 'type', 'cool']));
 
 SELECT format('%(name)I is %(type)I', hstore(ARRAY[
-    'name', 'Melanie', 'type', 'cool']));
+    'name', 'Melanie', 'type', 'Cool']));
 
 SELECT format('%(name)L is %(type)L', hstore(ARRAY[
     'name', 'Melanie', 'type', 'cool']));
+
+
+SELECT format('My name is %(name)12I and I like %(food)s', hstore(ARRAY[
+    'name', 'Melanie', 'food', 'tacos']));

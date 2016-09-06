@@ -23,7 +23,7 @@ Datum format_hstore(PG_FUNCTION_ARGS) {
   char *cp;
   char *key_ptr;
   int length; // use int for length to accomodate hstoreFindKey()
-  int width = 0;
+  int width;
   bool align_to_left = false; // used for conversion flag
 
   // output is the running string to which text is being appended during the scanning and parsing
@@ -53,6 +53,7 @@ Datum format_hstore(PG_FUNCTION_ARGS) {
       state = 0;
     }
     else if (state == 0 && *cp == '%') {
+      width = 0;
       state = 1;
     }
     // If two contiguous format start specifiers, '%', are found, consider it an escaped '%' character and append as usual
@@ -188,12 +189,15 @@ char *option_format(StringInfoData *output, char *string, int length, int width,
 }
 
 void output_append(StringInfoData *output, char *val, int vallen, char type, int width, bool align_to_left) {
+  // Need to allocate memory for a new, null-terminated string
+  // The return value from hstore_lookup() is not necessarily null-terminated
   char *string = palloc(vallen * sizeof(char) + 1);
   memcpy(string, val, vallen);
   string[vallen] = '\0';
   int length = vallen;
 
   if (type == 'I') {
+    // quote_identifier() sometimes returns a palloc'd string and sometimes returns the original string
     string = (char *) quote_identifier(string);
     length = strlen(string);
   }
@@ -203,7 +207,6 @@ void output_append(StringInfoData *output, char *val, int vallen, char type, int
   }
 
   string = option_format(output, string, length, width, align_to_left);
-
   if (type == 'L') {
     pfree(string);
   }
