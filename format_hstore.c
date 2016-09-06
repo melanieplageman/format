@@ -16,8 +16,12 @@ char *option_format(StringInfoData *output, char *string, int length, int width,
 Datum format_hstore(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(format_hstore);
 
+// format_hstore is STRICT so it returns NULL when any arguments are NULL
 Datum format_hstore(PG_FUNCTION_ARGS) {
-  text *format_string_text;
+  text *format_string_text = PG_GETARG_TEXT_PP(0);
+  // use PG_GETARG_DATUM because PG_GETARG_HS requires hstoreUpgrade (which we don't have)
+  HStore *hs = (HStore *) PG_GETARG_DATUM(1);
+
   char *start_ptr;
   char *end_ptr;
   char *cp;
@@ -30,16 +34,8 @@ Datum format_hstore(PG_FUNCTION_ARGS) {
   StringInfoData output;
   int state = 0;
 
-  HStore *hs = (HStore *) PG_GETARG_DATUM(1);
-
   // result is used to store the returned result which is output converted to text
   text *result;
-
-  // If format string is NULL, return NULL
-  if (PG_ARGISNULL(0))
-    PG_RETURN_NULL();
-  
-  format_string_text = PG_GETARG_TEXT_PP(0);
 
   start_ptr = VARDATA_ANY(format_string_text);
   end_ptr = start_ptr + VARSIZE_ANY_EXHDR(format_string_text);
