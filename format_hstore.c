@@ -46,6 +46,7 @@ Datum format_hstore(PG_FUNCTION_ARGS) {
     }
     else if (state == 0 && *cp == '%') {
       width = 0;
+      align_to_left = false;
       state = 1;
     }
     // If two adjacent format start specifiers, '%', are found, consider it an escaped '%' character and append as usual

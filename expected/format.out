@@ -33,14 +33,14 @@ SELECT format('A %(name)s B', hstore('name', 'World'));
 
 -- Format specifier with unmatched key
 SELECT format('%(hi)s %(name)s', hstore('name', 'World'));
-WARNING:  Invalid key
+WARNING:  Key not found
 
  format 
 --------
   World
 (1 row)
 
--- Format specifier with matched key but null value
+-- Format specifier with matched key but NULL value
 SELECT format('Hello %(name)s', hstore('name', NULL));
 WARNING:  Null value
 
@@ -50,12 +50,10 @@ WARNING:  Null value
 (1 row)
 
 -- Format specifier with punctuation in key name
-SELECT format('Hello %(na!me)s', hstore('na!me', NULL));
-WARNING:  Null value
-
- format 
---------
- Hello 
+SELECT format('Hello %(n@me)s', hstore('n@me', 'World'));
+   format    
+-------------
+ Hello World
 (1 row)
 
 -- s, I, and L are type specifiers
@@ -94,10 +92,50 @@ SELECT format('%(name)L is %(type)L', hstore(ARRAY[
  'Melanie' is 'cool'
 (1 row)
 
-SELECT format('My name is %(name)12I and I like %(food)s', hstore(ARRAY[
-    'name', 'Melanie', 'food', 'tacos']));
-                  format                  
-------------------------------------------
- My name is    "Melanie" and I like tacos
+-- s, I, and L have special behavior on NULL values
+SELECT format('%(null)s', hstore('null', NULL));
+WARNING:  Null value
+
+ format 
+--------
+ 
+(1 row)
+
+SELECT format('%(null)I', hstore('null', NULL));
+WARNING:  Null value
+
+ format 
+--------
+ 
+(1 row)
+
+SELECT format('%(null)L', hstore('null', NULL));
+WARNING:  Null value
+
+ format 
+--------
+ 
+(1 row)
+
+-- Minimum width and alignment can be specified
+SELECT format('%(name)-12L is %(type)L', hstore(ARRAY[
+    'name', 'Melanie', 'type', 'cool']));
+         format         
+------------------------
+ 'Melanie'    is 'cool'
+(1 row)
+
+SELECT format('%(name)12L is %(type)L', hstore(ARRAY[
+    'name', 'Melanie', 'type', 'cool']));
+         format         
+------------------------
+    'Melanie' is 'cool'
+(1 row)
+
+SELECT format('%(name)-12L is %(type)8L', hstore(ARRAY[
+    'name', 'Melanie', 'type', 'cool']));
+          format          
+--------------------------
+ 'Melanie'    is   'cool'
 (1 row)
 
