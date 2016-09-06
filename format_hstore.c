@@ -16,26 +16,22 @@ char *option_format(StringInfoData *output, char *string, int length, int width,
 Datum format_hstore(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(format_hstore);
 
-// format_hstore is STRICT so it returns NULL when any arguments are NULL
+// format_hstore() is STRICT so it returns NULL when any arguments are NULL
 Datum format_hstore(PG_FUNCTION_ARGS) {
   text *format_string_text = PG_GETARG_TEXT_PP(0);
-  // use PG_GETARG_DATUM because PG_GETARG_HS requires hstoreUpgrade (which we don't have)
+  // Use PG_GETARG_DATUM() because PG_GETARG_HS() requires hstoreUpgrade() (which we don't have)
   HStore *hs = (HStore *) PG_GETARG_DATUM(1);
 
   char *start_ptr;
   char *end_ptr;
   char *cp;
   char *key_ptr;
-  int length; // use int for length to accomodate hstoreFindKey()
+  int length; // use int for length to accomodate hstoreFindKey(); also a varlena size is guaranteed not to overflow int
   int width;
   bool align_to_left = false; // used for conversion flag
 
-  // output is the running string to which text is being appended during the scanning and parsing
-  StringInfoData output;
+  StringInfoData output; // output is the running string to which text is being appended during the scanning and parsing
   int state = 0;
-
-  // result is used to store the returned result which is output converted to text
-  text *result;
 
   start_ptr = VARDATA_ANY(format_string_text);
   end_ptr = start_ptr + VARSIZE_ANY_EXHDR(format_string_text);
@@ -52,7 +48,7 @@ Datum format_hstore(PG_FUNCTION_ARGS) {
       width = 0;
       state = 1;
     }
-    // If two contiguous format start specifiers, '%', are found, consider it an escaped '%' character and append as usual
+    // If two adjacent format start specifiers, '%', are found, consider it an escaped '%' character and append as usual
     else if (state == 1 && *cp == '%') {
       appendStringInfoCharMacro(&output, *cp);
       state = 0;
@@ -129,28 +125,25 @@ Datum format_hstore(PG_FUNCTION_ARGS) {
     elog(ERROR, "Invalid format string\n");
   }
 
-  // Convert the c string to PostgreSQL text to be returned
-  result = cstring_to_text_with_len(output.data, output.len);
+  text *result = cstring_to_text_with_len(output.data, output.len);
 
   pfree(output.data);
 
   PG_RETURN_TEXT_P(result);
 }
 
-// Perform the hstore lookup
 char *hstore_lookup(HStore *hs, char *key, int keylen, int *vallenp) {
-  // define a pointer to a function which receives a pointer to an HStore, an int pointer, a char pointer, and an int and returns an int
+  // Define a pointer to a function which receives a pointer to an HStore, an int pointer, a char pointer, and an int and returns an int
   int (*hstoreFindKey)(HStore*, int*, char*, int) = (int (*)(HStore*, int*, char*, int)) load_external_function("hstore", "hstoreFindKey", true, NULL);
 
   int idx = hstoreFindKey(hs, NULL, key, keylen);
 
-  // If a key is invalid, scanning will still continue, in the case that there are other valid keys in the format string
+  // If a key is not found, scanning will continue
   if (idx < 0) {
-    elog(WARNING, "Invalid key\n");
+    elog(WARNING, "Key not found\n");
     return NULL;
   }
-  // A NULL key is not an error, as this could be a valid HStore key, however, a warning appears in the case this was
-  // unintentional on the part of the user
+  // Issue a warning in the case of a NULL value. This means that all valid values and format text input will be output.
   if (HSTORE_VALISNULL(ARRPTR(hs), idx)) {
     elog(WARNING, "Null value\n");
     return NULL;
