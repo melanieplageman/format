@@ -38,7 +38,7 @@ Datum format_hstore(PG_FUNCTION_ARGS) {
   // If format string is NULL, return NULL
   if (PG_ARGISNULL(0))
     PG_RETURN_NULL();
-  
+
   format_string_text = PG_GETARG_TEXT_PP(0);
 
   start_ptr = VARDATA_ANY(format_string_text);
@@ -58,7 +58,7 @@ Datum format_hstore(PG_FUNCTION_ARGS) {
     // If two contiguous format start specifiers, '%', are found, consider it an escaped '%' character and append as usual
     else if (state == 1 && *cp == '%') {
       appendStringInfoCharMacro(&output, *cp);
-      state = 0; 
+      state = 0;
     }
     // If a single format start specifier is followed by a '(' character, set key_ptr and initialize length
     else if (state == 1 && *cp == '(') {
@@ -91,7 +91,7 @@ Datum format_hstore(PG_FUNCTION_ARGS) {
         state = 3;
       }
       else if (*cp >= '1' && *cp <= '9') {
-        width = *cp - '0'; 
+        width = *cp - '0';
         state = 4;
       }
       // Once the format type character is found, the format specifier is complete and the key is available for
