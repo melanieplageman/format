@@ -15,7 +15,7 @@ SELECT format('A %(name)s B', hstore('name', 'World'));
 
 SELECT format('%(hi)s %(name)s', hstore('name', 'World'));
 
--- Format specifier with matched key but null value
+-- Format specifier with matched key but NULL value
 
 SELECT format('Hello %(name)s', hstore('name', NULL));
 
@@ -39,6 +39,12 @@ SELECT format('%(name)I is %(type)I', hstore(ARRAY[
 
 SELECT format('%(name)L is %(type)L', hstore(ARRAY[
     'name', 'Melanie', 'type', 'cool']));
+
+-- s, I, and L have special behavior on NULL values
+
+SELECT format('%(null)s', hstore('null', NULL));
+SELECT format('%(null)I', hstore('null', NULL));
+SELECT format('%(null)L', hstore('null', NULL));
 
 -- Minimum width and alignment can be specified
 
