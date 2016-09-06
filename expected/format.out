@@ -109,6 +109,7 @@ WARNING:  Null value
  
 (1 row)
 
+-- TODO: this should return text 'NULL'
 SELECT format('%(null)L', hstore('null', NULL));
 WARNING:  Null value
 
