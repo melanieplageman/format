@@ -21,7 +21,7 @@ SELECT format('Hello %(name)s', hstore('name', NULL));
 
 -- Format specifier with punctuation in key name
 
-SELECT format('Hello %(na!me)s', hstore('na!me', NULL));
+SELECT format('Hello %(n@me)s', hstore('n@me', 'World'));
 
 -- s, I, and L are type specifiers
 
@@ -40,6 +40,13 @@ SELECT format('%(name)I is %(type)I', hstore(ARRAY[
 SELECT format('%(name)L is %(type)L', hstore(ARRAY[
     'name', 'Melanie', 'type', 'cool']));
 
+-- Minimum width and alignment can be specified
 
-SELECT format('My name is %(name)12I and I like %(food)s', hstore(ARRAY[
-    'name', 'Melanie', 'food', 'tacos']));
+SELECT format('%(name)-12L is %(type)L', hstore(ARRAY[
+    'name', 'Melanie', 'type', 'cool']));
+
+SELECT format('%(name)12L is %(type)L', hstore(ARRAY[
+    'name', 'Melanie', 'type', 'cool']));
+
+SELECT format('%(name)-12L is %(type)8L', hstore(ARRAY[
+    'name', 'Melanie', 'type', 'cool']));
