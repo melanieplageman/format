@@ -2,4 +2,4 @@
 comment = 'A string formatting function which takes named parameters'
 default_version = '1.0'
 requires = 'hstore'
-relocatable = False
+relocatable = true
