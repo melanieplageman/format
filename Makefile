@@ -1,6 +1,6 @@
 MODULES = format_hstore
 EXTENSION = format
-DATA = format--1.0.sql
+DATA = format--0.1.sql
 REGRESS = format
 
 PG_CONFIG = pg_config
