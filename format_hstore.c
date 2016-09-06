@@ -13,10 +13,10 @@ void output_append(StringInfoData *output, char *val, int vallen, char type, int
 char *option_format(StringInfoData *output, char *string, int length, int width, bool align_to_left);
 
 // Returns a formatted string when provided with named arguments
-Datum replace(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(replace);
+Datum format_hstore(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(format_hstore);
 
-Datum replace(PG_FUNCTION_ARGS) {
+Datum format_hstore(PG_FUNCTION_ARGS) {
   text *format_string_text;
   char *start_ptr;
   char *end_ptr;
