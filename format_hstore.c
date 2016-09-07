@@ -8,6 +8,8 @@
 PG_MODULE_MAGIC;
 #endif
 
+typedef HStore *(*hstoreUpgradeF)(Datum);
+
 char *hstore_lookup(HStore *hs, char *key, int keylen, int *vallenp);
 void output_append(StringInfoData *output, char *val, int vallen, char type, int width, bool align_to_left);
 char *option_format(StringInfoData *output, char *string, int length, int width, bool align_to_left);
@@ -19,8 +21,11 @@ PG_FUNCTION_INFO_V1(format_hstore);
 // format_hstore() is STRICT so it returns NULL when any arguments are NULL
 Datum format_hstore(PG_FUNCTION_ARGS) {
   text *format_string_text = PG_GETARG_TEXT_PP(0);
-  // Use PG_GETARG_DATUM() because PG_GETARG_HS() requires hstoreUpgrade() (which we don't have)
-  HStore *hs = (HStore *) PG_GETARG_DATUM(1);
+
+  // Manually do PG_GETARG_HS() as in hstore.h
+  hstoreUpgradeF hstoreUpgrade = (hstoreUpgradeF) load_external_function(
+      "hstore", "hstoreUpgrade", true, NULL);
+  HStore *hs = hstoreUpgrade(PG_GETARG_DATUM(1));
 
   char *start_ptr;
   char *end_ptr;
