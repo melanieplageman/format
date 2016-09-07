@@ -9,7 +9,7 @@ PG_MODULE_MAGIC;
 #endif
 
 char *hstore_lookup(HStore *hs, char *key, int keylen, int *vallenp);
-void output_append(StringInfoData *output, char *val, int vallen, char type, int width, bool align_to_left);
+void output_append(StringInfoData *output, char *val, int vallen, char type, int width, bool align_to_left, bool isNull);
 char *option_format(StringInfoData *output, char *string, int length, int width, bool align_to_left);
 
 // Returns a formatted string when provided with named arguments
@@ -29,6 +29,7 @@ Datum format_hstore(PG_FUNCTION_ARGS) {
   int length; // use int for length to accomodate hstoreFindKey(); also a varlena size is guaranteed not to overflow int
   int width;
   bool align_to_left = false; // used for conversion flag
+  bool isNull = false; // used as flag to handle NULL differently for each format type
 
   StringInfoData output; // output is the running string to which text is being appended during the scanning and parsing
   int state = 0;
@@ -58,6 +59,7 @@ Datum format_hstore(PG_FUNCTION_ARGS) {
     else if (state == 1 && *cp == '(') {
       key_ptr = cp + 1;
       length = 0;
+      isNull = false;
       state = 2;
     }
     // If a single format start specifier is followed by any character other than a '%' or a '(', this is an error
@@ -93,8 +95,10 @@ Datum format_hstore(PG_FUNCTION_ARGS) {
       else if (*cp == 's' || *cp == 'I' || *cp == 'L') {
         int vallen;
         char *val = hstore_lookup(hs, key_ptr, length, &vallen);
-        if (val != NULL)
-          output_append(&output, val, vallen, *cp, width, align_to_left);
+        if (val == NULL) {
+          isNull = true;
+        }
+        output_append(&output, val, vallen, *cp, width, align_to_left, isNull);
         state = 0;
       }
       // If characters other than a conversion flag, format type, or width are found, this is an error
@@ -111,8 +115,10 @@ Datum format_hstore(PG_FUNCTION_ARGS) {
       else if (*cp == 's' || *cp == 'I' || *cp == 'L') {
         int vallen;
         char *val = hstore_lookup(hs, key_ptr, length, &vallen);
-        if (val != NULL)
-          output_append(&output, val, vallen, *cp, width, align_to_left);
+        if (val == NULL) {
+          isNull = true;
+        }
+        output_append(&output, val, vallen, *cp, width, align_to_left, isNull);
         state = 0;
       }
       else {
@@ -178,7 +184,19 @@ char *option_format(StringInfoData *output, char *string, int length, int width,
   return string;
 }
 
-void output_append(StringInfoData *output, char *val, int vallen, char type, int width, bool align_to_left) {
+void output_append(StringInfoData *output, char *val, int vallen, char type, int width, bool align_to_left, bool isNull) {
+  if (isNull) {
+    if (type == 'I') {
+      ereport(ERROR, (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED), errmsg("null values cannot be formatted as an SQL identifier")));
+    }
+    else if (type == 'L') {
+      val = "NULL";
+    }
+    else if (type == 's') {
+      val = "";
+    }
+    vallen = strlen(val);
+  }
   // Need to allocate memory for a new, null-terminated string
   // The return value from hstore_lookup() is not necessarily null-terminated
   char *string = palloc(vallen * sizeof(char) + 1);

@@ -44,7 +44,6 @@ SELECT format('%(name)L is %(type)L', hstore(ARRAY[
 
 SELECT format('%(null)s', hstore('null', NULL));
 SELECT format('%(null)I', hstore('null', NULL));
--- TODO: this should return text 'NULL'
 SELECT format('%(null)L', hstore('null', NULL));
 
 -- Minimum width and alignment can be specified
