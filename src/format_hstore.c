@@ -196,6 +196,7 @@ void output_append(StringInfoData *output, char *val, int vallen, char type, int
     }
     else if (type == 'L') {
       val = "NULL";
+      type = 's';
     }
     else if (type == 's') {
       val = "";
