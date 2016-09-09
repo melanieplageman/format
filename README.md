@@ -71,7 +71,7 @@ so:
 
 Dependencies
 ------------
-The `format` data type has no dependencies other than PostgreSQL.
+The `format` extension has no dependencies other than PostgreSQL and HStore.
 
 Copyright and License
 ---------------------
