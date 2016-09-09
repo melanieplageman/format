@@ -1,5 +1,6 @@
 # format extension
 comment = 'A string formatting function which takes named parameters'
-default_version = '0.1'
+default_version = '0.0.1'
 requires = 'hstore'
+module_pathname = '$libdir/format'
 relocatable = true

@@ -32,4 +32,12 @@
 *.dSYM/
 *.su
 
-!expected/*.out
+# Installcheck Artifacts
+results/
+tmp/
+regression.diffs
+regression.out
+/sql/format--*
+!/sql/format--*--*.sql
+
+!test/expected/*.out

@@ -1,36 +1,80 @@
-# format
-This `format` function produces output formatted according to a format string (in a style similar to the C function `sprintf`).
-This `format` is an extension of the built-in `format` function, as it is string interpolation with named format parameters.
+format
+======
 
-For example, given an HStore with key 'location' and value 'World',
+A long description
 
-    SELECT format('Hello %(location)s!', hstore('location', 'World'));
+To build it, just do this:
 
-would produce the following:
+    make
+    make installcheck
+    make install
 
-Hello World!
+If you encounter an error such as:
 
-Format specifiers are introduced by a % character followed by a paranthesized key name and take the form:
+    "Makefile", line 8: Need an operator
 
-    %([key name])[flags][width]type
-where the component fields are:
+You need to use GNU make, which may well be installed on your system as
+`gmake`:
 
-**key name** (required)  
-A valid HStore key
+    gmake
+    gmake install
+    gmake installcheck
 
-**flags** (optional)  
-Additional options controlling how the format specifier's output is formatted. Currently the only supported flag is a minus sign (-) which will cause the format specifier's output to be left-justified. This has no effect unless the width field is also specified.
+If you encounter an error such as:
 
-**width** (optional)  
-Specifies the minimum number of characters to use to display the format specifier's output. The output is padded on the left or right (depending on the - flag) with spaces as needed to fill the width. A too-small width does not cause truncation of the output but is simply ignored. The width may be specified using a positive integer.
+    make: pg_config: Command not found
 
-**type** (required)  
-The type of format conversion to use to produce the format specifier's output. The following types are supported:
+Be sure that you have `pg_config` installed and in your path. If you used a
+package management system such as RPM to install PostgreSQL, be sure that the
+`-devel` package is also installed. If necessary tell the build process where
+to find it:
 
-* s formats the argument value as a simple string. A null value is treated as an empty string.
+    env PG_CONFIG=/path/to/pg_config make && make installcheck && make install
 
-* I treats the argument value as an SQL identifier, double-quoting it if necessary.
+And finally, if all that fails (and if you're on PostgreSQL 8.1 or lower, it
+likely will), copy the entire distribution directory to the `contrib/`
+subdirectory of the PostgreSQL source tree and try it there without
+`pg_config`:
 
-* L quotes the argument value as an SQL literal.
+    env NO_PGXS=1 make && make installcheck && make install
 
-In addition to the format specifiers described above, the special sequence %% may be used to output a literal % character.
+If you encounter an error such as:
+
+    ERROR:  must be owner of database regression
+
+You need to run the test suite using a super user, such as the default
+"postgres" super user:
+
+    make installcheck PGUSER=postgres
+
+Once format is installed, you can add it to a database. If you're running
+PostgreSQL 9.1.0 or greater, it's a simple as connecting to a database as a
+super user and running:
+
+    CREATE EXTENSION format;
+
+If you've upgraded your cluster to PostgreSQL 9.1 and already had format
+installed, you can upgrade it to a properly packaged extension with:
+
+    CREATE EXTENSION format FROM unpackaged;
+
+For versions of PostgreSQL less than 9.1.0, you'll need to run the
+installation script:
+
+    psql -d mydb -f /path/to/pgsql/share/contrib/format.sql
+
+If you want to install format and all of its supporting objects into a specific
+schema, use the `PGOPTIONS` environment variable to specify the schema, like
+so:
+
+    PGOPTIONS=--search_path=extensions psql -d mydb -f format.sql
+
+Dependencies
+------------
+The `format` data type has no dependencies other than PostgreSQL.
+
+Copyright and License
+---------------------
+
+Copyright (c) 2016 Melanie Plageman
+
