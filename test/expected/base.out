@@ -110,7 +110,7 @@ WARNING:  Null value
 
  format 
 --------
- 'NULL'
+ NULL
 (1 row)
 
 -- Minimum width and alignment can be specified
