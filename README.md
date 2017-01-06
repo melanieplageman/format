@@ -1,3 +1,5 @@
+This extension has been deprecated. Please see [format_x](https://github.com/melanieplageman/format_x).
+
 format
 ======
 
